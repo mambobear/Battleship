@@ -7,10 +7,20 @@ import java.util.Scanner;
 public class Main {
 
     public static void main(String[] args) {
-        stage1();
+        Game game = new Game();
+        game.init();
+        game.play();
     }
+}
 
-    private static void stage1() {
+class Game {
+
+    Scanner scanner = new Scanner(System.in);
+
+    Battlefield battlefield = new Battlefield();
+
+
+    public void init() {
         ShipClass[] shipsClasses = new ShipClass[5];
         shipsClasses[0] = new ShipClass("Aircraft Carrier", 5);
         shipsClasses[1] = new ShipClass("Battleship", 4);
@@ -20,8 +30,7 @@ public class Main {
 
         Scanner scanner = new Scanner(System.in);
 
-        Battlefield battlefield = new Battlefield();
-        System.out.println(battlefield);
+        System.out.println(battlefield.asString(true));
 
         for (int i = 0; i < 5; i++) {
             ShipClass shipClass = shipsClasses[i];
@@ -35,11 +44,39 @@ public class Main {
                     Ship ship = new Ship(headStr, tailStr, shipClass);
                     battlefield.addShip(ship);
                     System.out.println();
-                    System.out.println(battlefield);
+                    System.out.println(battlefield.asString(false));
                     break;
                 } catch (IllegalArgumentException e) {
                     prompt = "\n" + e.getMessage();
                 }
+            }
+        }
+    }
+
+    public void play() {
+        System.out.println("\nThe game starts!\n");
+        System.out.println(battlefield.asString(true));
+
+        System.out.println("\nTake a shot!\n");
+        String str;
+        // TODO: move convert method to Battlefield
+        Coordinate shot = null;
+        while (true) {
+            str = scanner.next();
+            try {
+                shot = Ship.convertToFieldCoordinates(str);
+                boolean hit = battlefield.shoot(shot);
+                System.out.println(battlefield.asString(true));
+                System.out.println();
+                if (hit) {
+                    System.out.println("You hit a ship!\n");
+                } else {
+                    System.out.println("You missed!\n");
+                }
+                System.out.println(battlefield.asString(false));
+                break;
+            } catch (IllegalArgumentException e) {
+                System.out.println("Error! You entered the wrong coordinates! Try again:\n");
             }
         }
     }
@@ -121,12 +158,18 @@ class Battlefield {
     private void place(Ship ship) {
 
         Coordinate[] shipCoords = ship.getCoordinates();
+
         for (Coordinate coord : shipCoords) {
             int row = coord.getRow();
             int col = coord.getCol();
             if (field[row][col].isBorder()) {
                 throw new IllegalArgumentException("Error! You placed it too close to another one. Try again:\n");
             }
+        }
+
+        for (Coordinate coord : shipCoords) {
+            int row = coord.getRow();
+            int col = coord.getCol();
             field[row][col].setShip(ship);
         }
 
@@ -145,10 +188,10 @@ class Battlefield {
         }
     }
 
-    public String toString() {
-
+    public String asString(boolean hidden) {
         StringBuilder stringBuilder = new StringBuilder();
 
+        // build header
         stringBuilder.append("  ");
         for (int i = 1; i <= SIZE; i++) {
             stringBuilder.append(i);
@@ -159,11 +202,18 @@ class Battlefield {
             }
         }
 
+        // main part
         for (int row = 0; row < SIZE; row++) {
             stringBuilder.append((char) ('A' + row));
             stringBuilder.append(" ");
             for (int col = 0; col < SIZE; col++) {
-                stringBuilder.append(field[row][col]);
+                char ch = ' ';
+                BattlefieldCell cell = field[row][col];
+                if (hidden && cell.getStatus() == BattlefieldCell.CellStatus.SHIP) {
+                    stringBuilder.append('~');
+                } else {
+                    stringBuilder.append(field[row][col]);
+                }
                 if (col != SIZE - 1) {
                     stringBuilder.append(' ');
                 }
@@ -173,6 +223,17 @@ class Battlefield {
             }
         }
         return stringBuilder.toString();
+    }
+
+    public boolean shoot(Coordinate shot) {
+        BattlefieldCell cell = field[shot.getRow()][shot.getCol()];
+        if (cell.getStatus() == BattlefieldCell.CellStatus.SHIP) {
+            cell.setStatus(BattlefieldCell.CellStatus.HIT);
+            return true;
+        } else {
+            cell.setStatus(BattlefieldCell.CellStatus.MISS);
+            return false;
+        }
     }
 }
 

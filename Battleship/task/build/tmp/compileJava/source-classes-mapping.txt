@@ -4,6 +4,7 @@ battleship/Main.java
  battleship.BattlefieldCell$1
  battleship.BattlefieldCell$CellStatus
  battleship.Coordinate
+ battleship.Game
  battleship.Main
  battleship.Ship
  battleship.Ship$Orientation
