@@ -159,12 +159,8 @@ class Battlefield {
 
         Coordinate[] shipCoords = ship.getCoordinates();
 
-        for (Coordinate coord : shipCoords) {
-            int row = coord.getRow();
-            int col = coord.getCol();
-            if (field[row][col].isBorder()) {
-                throw new IllegalArgumentException("Error! You placed it too close to another one. Try again:\n");
-            }
+        if (!canPlaceShip(shipCoords)) {
+            throw new IllegalArgumentException("Error! You placed it too close to another one. Try again:\n");
         }
 
         for (Coordinate coord : shipCoords) {
@@ -173,6 +169,10 @@ class Battlefield {
             field[row][col].setShip(ship);
         }
 
+        setShipBorders(shipCoords);
+    }
+
+    private void setShipBorders(Coordinate[] shipCoords) {
         for (Coordinate coord : shipCoords) {
             Coordinate[] neighbors = coord.getNeighbors();
             for (Coordinate neighbor : neighbors) {
@@ -186,6 +186,17 @@ class Battlefield {
                 }
             }
         }
+    }
+
+    private boolean canPlaceShip(Coordinate[] shipCoords) {
+        for (Coordinate coord : shipCoords) {
+            int row = coord.getRow();
+            int col = coord.getCol();
+            if (field[row][col].isBorder()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public String asString(boolean hidden) {
