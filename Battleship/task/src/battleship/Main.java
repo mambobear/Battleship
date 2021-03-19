@@ -1,7 +1,5 @@
 package battleship;
 
-// import java.security.PublicKey;
-// import java.util.ArrayList;
 import java.util.Scanner;
 
 public class Main {
@@ -41,7 +39,7 @@ class Game {
                 String headStr = scanner.next();
                 String tailStr = scanner.next();
                 try {
-                    Ship ship = new Ship(headStr, tailStr, shipClass);
+                    Ship ship = new Ship(battlefield, headStr, tailStr, shipClass);
                     battlefield.addShip(ship);
                     System.out.println();
                     System.out.println(battlefield.asString(false));
@@ -60,7 +58,7 @@ class Game {
         System.out.println("\nTake a shot!\n");
         String str;
         // TODO: move convert method to Battlefield
-        Coordinate shot = null;
+        Coordinate shot;
         while (true) {
             str = scanner.next();
             try {
@@ -69,12 +67,20 @@ class Game {
                 System.out.println(battlefield.asString(true));
                 System.out.println();
                 if (hit) {
-                    System.out.println("You hit a ship!\n");
+                    if (this.battlefield.getNumberOfShips() == 0) {
+                        System.out.println("You sank the last ship. You won. Congratulations!");
+                        break;
+                    } else {
+                        if (this.battlefield.isShipSunk()) {
+                            this.battlefield.setShipSunk(false);
+                            System.out.println("You sank a ship! Specify a new target:");
+                        } else {
+                            System.out.println("You hit a ship! Try again:\n");
+                        }
+                    }
                 } else {
-                    System.out.println("You missed!\n");
+                    System.out.println("You missed! Try again:\n");
                 }
-                System.out.println(battlefield.asString(false));
-                break;
             } catch (IllegalArgumentException e) {
                 System.out.println("Error! You entered the wrong coordinates! Try again:\n");
             }
@@ -101,10 +107,6 @@ class BattlefieldCell {
 
     private boolean border = false;
 
-    public Ship getShip() {
-        return ship;
-    }
-
     public void setShip(Ship ship) {
         this.ship = ship;
         this.status = CellStatus.SHIP;
@@ -116,10 +118,12 @@ class BattlefieldCell {
 
     public void setStatus(CellStatus status) {
         this.status = status;
+        if (ship != null) {
+            ship.hit();
+        }
     }
 
     public String toString() {
-        String result = "";
         switch (status) {
             case UNKNOWN:
                 return "~";
@@ -139,7 +143,9 @@ class Battlefield {
 
     private final int SIZE = 10;
     private final BattlefieldCell[][] field = new BattlefieldCell[SIZE][SIZE];
-    //private final ArrayList<Ship> ships = new ArrayList<>();
+    private int numberOfShips = 0;
+
+    private boolean shipSunk = false;
 
     Battlefield() {
         for (int row = 0; row < SIZE; row++) {
@@ -149,10 +155,21 @@ class Battlefield {
         }
     }
 
+    public boolean isShipSunk() {
+        return shipSunk;
+    }
+
+    public void setShipSunk(boolean shipSunk) {
+        this.shipSunk = shipSunk;
+    }
+
+    public int getNumberOfShips() {
+        return numberOfShips;
+    }
+
     void addShip(Ship ship) {
-        // TODO: check for duplicates
-        //ships.add(ship);
         place(ship);
+        numberOfShips++;
     }
 
     private void place(Ship ship) {
@@ -218,7 +235,6 @@ class Battlefield {
             stringBuilder.append((char) ('A' + row));
             stringBuilder.append(" ");
             for (int col = 0; col < SIZE; col++) {
-                char ch = ' ';
                 BattlefieldCell cell = field[row][col];
                 if (hidden && cell.getStatus() == BattlefieldCell.CellStatus.SHIP) {
                     stringBuilder.append('~');
@@ -241,10 +257,18 @@ class Battlefield {
         if (cell.getStatus() == BattlefieldCell.CellStatus.SHIP) {
             cell.setStatus(BattlefieldCell.CellStatus.HIT);
             return true;
+        } else if (cell.getStatus() == BattlefieldCell.CellStatus.HIT) {
+            // TODO: Check what to do when ship's hit twice
+            return false;
         } else {
             cell.setStatus(BattlefieldCell.CellStatus.MISS);
             return false;
         }
+    }
+
+    public void shipSunk() {
+        this.setShipSunk(true);
+        this.numberOfShips--;
     }
 }
 
@@ -255,36 +279,39 @@ class Ship {
         HORIZONTAL
     }
 
-    private final int SIZE = 10;
+    private static final int SIZE = 10;
+    private int sectionsRemaining;
 
-    // private final String type;
-
+    Battlefield battlefield;
     private Coordinate head;
     private final int length;
     private final Orientation orientation;
 
-    Ship(String start, String finish, ShipClass shipClass) {
-        head = convertToFieldCoordinates(start);
+    Ship(Battlefield battlefield,  String start, String finish, ShipClass shipClass) {
+
+        this.battlefield = battlefield;
+
+        this.head = convertToFieldCoordinates(start);
         Coordinate tail = convertToFieldCoordinates(finish);
 
-        if (!isValid(head, tail)) {
+        if (!isValid(this.head, tail)) {
             throw new IllegalArgumentException("Error! Wrong ship location! Try again:\n");
         }
 
-        if (!(head.getRow() <= tail.getRow() && head.getCol() <= tail.getCol())) {
-            Coordinate temp = head;
-            head = tail;
+        if (!(this.head.getRow() <= tail.getRow() && this.head.getCol() <= tail.getCol())) {
+            Coordinate temp = this.head;
+            this.head = tail;
             tail = temp;
         }
 
         // Set orientation
-        orientation = head.getRow() == tail.getRow() ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+        this.orientation = this.head.getRow() == tail.getRow() ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 
         // Set length
-        if (orientation == Orientation.HORIZONTAL) {
-            this.length = tail.getCol() - head.getCol() + 1;
+        if (this.orientation == Orientation.HORIZONTAL) {
+            this.length = tail.getCol() - this.head.getCol() + 1;
         } else {
-            this.length = tail.getRow() - head.getRow() + 1;
+            this.length = tail.getRow() - this.head.getRow() + 1;
         }
 
         if (this.length != shipClass.getLength()) {
@@ -292,17 +319,10 @@ class Ship {
                     shipClass.getType()));
         }
 
-        if (length == 0 || length > SIZE) {
+        if (this.length == 0 || this.length > SIZE) {
             throw new IllegalArgumentException("Invalid ship length");
         }
-    }
-
-    public Coordinate getHead() {
-        return head;
-    }
-
-    public int getLength() {
-        return length;
+        this.sectionsRemaining = length;
     }
 
     public Coordinate[] getCoordinates() {
@@ -349,6 +369,13 @@ class Ship {
 
     public String toString() {
         return String.format("head = (%d, %d), length = %d\n", head.getRow(), head.getCol(), length);
+    }
+
+    public void hit() {
+        sectionsRemaining--;
+        if (sectionsRemaining == 0) {
+            this.battlefield.shipSunk();
+        }
     }
 }
 
