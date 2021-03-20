@@ -1,5 +1,6 @@
 package battleship;
 
+import java.io.IOException;
 import java.util.Scanner;
 
 public class Main {
@@ -13,12 +14,28 @@ public class Main {
 
 class Game {
 
+    private final static int NUM_PLAYERS = 2;
     Scanner scanner = new Scanner(System.in);
 
-    Battlefield battlefield = new Battlefield();
+    Battlefield battlefield1 = new Battlefield();
+    Battlefield battlefield2 = new Battlefield();
 
+    Battlefield[] battlefields = new Battlefield[]{battlefield1, battlefield2};
 
     public void init() {
+        for (int i = 0; i < NUM_PLAYERS; i++) {
+            this.init(battlefields[i], i + 1);
+            System.out.print("Press Enter and pass the move to another player");
+            try {
+                System.in.read();
+            } catch (IOException e) {
+                System.out.println("Something weird happened");
+            }
+            System.out.println("...");
+        }
+    }
+
+    public void init(Battlefield battlefield, int player) {
         ShipClass[] shipsClasses = new ShipClass[5];
         shipsClasses[0] = new ShipClass("Aircraft Carrier", 5);
         shipsClasses[1] = new ShipClass("Battleship", 4);
@@ -28,11 +45,12 @@ class Game {
 
         Scanner scanner = new Scanner(System.in);
 
+        System.out.printf("Player %d, place your ships on the game field\n", player);
         System.out.println(battlefield.asString(true));
 
         for (int i = 0; i < 5; i++) {
             ShipClass shipClass = shipsClasses[i];
-            String prompt = String.format("\nEnter the coordinates the %s (%d cells)\n",
+            String prompt = String.format("\nEnter the coordinates the %s (%d cells)",
                     shipClass.getType(), shipClass.getLength());
             while (true) {
                 System.out.println(prompt);
@@ -51,35 +69,72 @@ class Game {
         }
     }
 
-    public void play() {
-        System.out.println("\nThe game starts!\n");
-        System.out.println(battlefield.asString(true));
+    enum Outcome {
+        WIN, SHIP_SUNK, MISS, HIT
+    }
 
-        System.out.println("\nTake a shot!\n");
-        String str;
+    public void play() {
+        int current_player = 0;
+        while (true) {
+            Outcome outcome = makeMove(current_player);
+            switch (outcome) {
+                case WIN:
+                    System.out.println("You sank the last ship. You won. Congratulations!");
+                    break;
+                case SHIP_SUNK:
+                    System.out.print("You sank a ship!\n" +
+                            "Press Enter and pass the move to another player");
+                    break;
+                case HIT:
+                    System.out.print("You hit a ship!\n" +
+                            "Press Enter and pass the move to another player");
+                    break;
+                case MISS:
+                    System.out.print("You missed!\n" +
+                            "Press Enter and pass the move to another player");
+                    break;
+            }
+            if (outcome == Outcome.WIN) break;
+            current_player = (current_player + 1) % 2;
+            try {
+                System.in.read();
+            } catch (IOException e) {
+                System.out.println("Something weird happened");
+            }
+
+            System.out.println("...");
+        }
+    }
+
+    private Outcome makeMove(int current_player) {
+        Battlefield currentPlayerBattlefield = battlefields[current_player];
+        Battlefield opponentPlayerBattlefield = battlefields[(current_player + 1) % 2];
+        System.out.println(opponentPlayerBattlefield.asString(true));
+        System.out.println("---------------------");
+        System.out.println(currentPlayerBattlefield.asString(false));
+
+        System.out.printf("Player %d, it's your turn:\n", current_player + 1);
+        String coordStr;
         // TODO: move convert method to Battlefield
         Coordinate shot;
         while (true) {
-            str = scanner.next();
+            coordStr = scanner.next();
             try {
-                shot = Ship.convertToFieldCoordinates(str);
-                boolean hit = battlefield.shoot(shot);
-                System.out.println(battlefield.asString(true));
-                System.out.println();
+                shot = Ship.convertToFieldCoordinates(coordStr);
+                boolean hit = opponentPlayerBattlefield.shoot(shot);
                 if (hit) {
-                    if (this.battlefield.getNumberOfShips() == 0) {
-                        System.out.println("You sank the last ship. You won. Congratulations!");
-                        break;
+                    if (opponentPlayerBattlefield.getNumberOfShips() == 0) {
+                        return Outcome.WIN;
                     } else {
-                        if (this.battlefield.isShipSunk()) {
-                            this.battlefield.setShipSunk(false);
-                            System.out.println("You sank a ship! Specify a new target:");
+                        if (opponentPlayerBattlefield.isShipSunk()) {
+                            opponentPlayerBattlefield.setShipSunk(false);
+                            return Outcome.SHIP_SUNK;
                         } else {
-                            System.out.println("You hit a ship! Try again:\n");
+                           return Outcome.HIT;
                         }
                     }
                 } else {
-                    System.out.println("You missed! Try again:\n");
+                    return Outcome.MISS;
                 }
             } catch (IllegalArgumentException e) {
                 System.out.println("Error! You entered the wrong coordinates! Try again:\n");
@@ -287,7 +342,7 @@ class Ship {
     private final int length;
     private final Orientation orientation;
 
-    Ship(Battlefield battlefield,  String start, String finish, ShipClass shipClass) {
+    Ship(Battlefield battlefield, String start, String finish, ShipClass shipClass) {
 
         this.battlefield = battlefield;
 
@@ -295,7 +350,7 @@ class Ship {
         Coordinate tail = convertToFieldCoordinates(finish);
 
         if (!isValid(this.head, tail)) {
-            throw new IllegalArgumentException("Error! Wrong ship location! Try again:\n");
+            throw new IllegalArgumentException("Error! Wrong ship location! Try again:");
         }
 
         if (!(this.head.getRow() <= tail.getRow() && this.head.getCol() <= tail.getCol())) {
@@ -357,10 +412,15 @@ class Ship {
         }
 
         int row = rowChar - 'A';
-
-        int col = Integer.parseInt(str.substring(1));
-        if (col < 1 || col > 10) {
+        int col;
+        try {
+            col = Integer.parseInt(str.substring(1));
+        } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid ship coordinates");
+        }
+
+        if (col < 1 || col > 10) {
+            throw new IllegalArgumentException("Error! Invalid ship coordinates");
         }
         col -= 1;
 
